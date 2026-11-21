@@ -1,0 +1,137 @@
+--- /dev/null
++++ b/src/main/java/com/dragonballultimate/client/HudTextLayout.java
+@@ -0,0 +1,47 @@
++package com.dragonballultimate.client;
++
++import java.util.Objects;
++import java.util.function.ToIntFunction;
++
++/**
++ * Seleção de rótulos para o HUD sem dependências do Minecraft/Forge.
++ * Ajusta APENAS a apresentação; não altera Ki, liberação ou suas regras.
++ */
++public final class HudTextLayout {
++    public static final int KI_GAP = 5;
++
++    private HudTextLayout() {}
++
++    public record KiLabels(String ki, String release) {}
++
++    /**
++     * Escolhe textos que caibam na mesma linha, medidos pela fonte real do cliente.
++     * O Ki tem precedência; a liberação pode ser abreviada ou omitida em espaços extremos.
++     * Nunca ultrapassa a largura fornecida, nem deixa os dois textos se sobreporem.
++     */
++    public static KiLabels fitKiLabels(int ki, int maxKi, int releasePercent, int maxRelease,
++                                      int availableWidth, ToIntFunction<String> textWidth) {
++        Objects.requireNonNull(textWidth, "textWidth");
++        if (availableWidth <= 0) return new KiLabels("", "");
++
++        String fullKi = "KI " + HudMath.number(ki) + "/" + HudMath.number(maxKi);
++        String shortKi = "KI " + HudMath.number(ki);
++        String fullRelease = "LIB " + releasePercent + "%/" + maxRelease + "%";
++        String shortRelease = "L " + releasePercent + "%";
++        String[] kiOptions = {fullKi, fullKi, shortKi, shortKi,
++                fullKi, shortKi, "KI", "KI"};
++        String[] releaseOptions = {fullRelease, shortRelease, fullRelease, shortRelease,
++                "", "", shortRelease, ""};
++
++        for (int i = 0; i < kiOptions.length; i++) {
++            String left = kiOptions[i];
++            String right = releaseOptions[i];
++            int leftWidth = Math.max(0, textWidth.applyAsInt(left));
++            int rightWidth = right.isEmpty() ? 0 : Math.max(0, textWidth.applyAsInt(right));
++            long needed = (long) leftWidth + (right.isEmpty() ? 0 : KI_GAP + (long) rightWidth);
++            if (needed <= availableWidth) return new KiLabels(left, right);
++        }
++        // O próprio texto "KI" não cabe; esconder evita escrita fora do medidor.
++        return new KiLabels("", "");
++    }
++}
+--- a/src/main/java/com/dragonballultimate/client/DBUHud.java
++++ b/src/main/java/com/dragonballultimate/client/DBUHud.java
+@@ -230,12 +230,14 @@
+     private static void drawUnifiedKi(GuiGraphics g, Minecraft mc, int x, int y,
+                                       int width, PlayerStatePacket state,
+                                       boolean charging, float time) {
+-        String kiValue = "KI " + HudMath.number(state.ki()) + "/" + HudMath.number(state.maxKi());
+-        String releaseValue = "LIB " + state.releasePercent() + "%/" + state.maxRelease() + "%";
+-        if (mc.font.width(kiValue) + mc.font.width(releaseValue) + 5 > width)
+-            releaseValue = "L " + state.releasePercent() + "%";
+-        g.drawString(mc.font, kiValue, x, y, charging ? 0xFFA7F3FF : LIGHT, true);
+-        g.drawString(mc.font, releaseValue, x + width - mc.font.width(releaseValue), y, GOLD, true);
++        HudTextLayout.KiLabels labels = HudTextLayout.fitKiLabels(
++                state.ki(), state.maxKi(), state.releasePercent(), state.maxRelease(),
++                width, mc.font::width);
++        if (!labels.ki().isEmpty())
++            g.drawString(mc.font, labels.ki(), x, y, charging ? 0xFFA7F3FF : LIGHT, true);
++        if (!labels.release().isEmpty())
++            g.drawString(mc.font, labels.release(), x + width - mc.font.width(labels.release()),
++                    y, GOLD, true);
+ 
+         int top = y + 12;
+         int mainHeight = 8;
+--- /dev/null
++++ b/tools/HudTextLayoutSmokeTest.java
+@@ -0,0 +1,61 @@
++import com.dragonballultimate.client.HudTextLayout;
++import java.util.Random;
++import java.util.function.ToIntFunction;
++
++/** Regressão determinística de Ki/Liberação sem Forge ou inicialização do cliente. */
++public final class HudTextLayoutSmokeTest {
++    private static int assertions;
++    private static final ToIntFunction<String> MONO = s -> s.length() * 6;
++    private static final ToIntFunction<String> VARIABLE = s -> {
++        int pixels = 0;
++        for (int i = 0; i < s.length(); i++)
++            pixels += "1il .".indexOf(s.charAt(i)) >= 0 ? 3 : 7;
++        return pixels;
++    };
++
++    private static void verify(boolean result, String description) {
++        if (!result) throw new AssertionError("#" + assertions + ": " + description);
++        assertions++;
++    }
++
++    private static void checkFits(HudTextLayout.KiLabels labels, int width,
++                                  ToIntFunction<String> font) {
++        int kiWidth = font.applyAsInt(labels.ki());
++        int releaseWidth = font.applyAsInt(labels.release());
++        verify(kiWidth + (labels.release().isEmpty() ? 0 :
++                HudTextLayout.KI_GAP + releaseWidth) <= width, "overlap or clipping");
++        verify(labels.ki().isEmpty() || labels.ki().startsWith("KI"), "Ki anchor");
++        verify(labels.release().isEmpty() || labels.release().startsWith("L ")
++                || labels.release().startsWith("LIB "), "release anchor");
++    }
++
++    public static void main(String[] args) {
++        HudTextLayout.KiLabels full = HudTextLayout.fitKiLabels(100, 200, 50, 75, 500, MONO);
++        verify(full.ki().equals("KI 100/200"), "Ki full format");
++        verify(full.release().equals("LIB 50%/75%"), "release full format");
++        HudTextLayout.KiLabels none = HudTextLayout.fitKiLabels(100, 200, 50, 75, 0, MONO);
++        verify(none.ki().isEmpty() && none.release().isEmpty(), "zero width");
++        verify(HudTextLayout.fitKiLabels(100, 200, 50, 75, 5, MONO).ki().isEmpty(),
++                "too narrow for KI");
++        for (ToIntFunction<String> font : java.util.List.of(MONO, VARIABLE)) {
++            for (int width = 0; width <= 390; width++) {
++                HudTextLayout.KiLabels labels = HudTextLayout.fitKiLabels(
++                        Integer.MAX_VALUE, Integer.MAX_VALUE, 100, 100, width, font);
++                checkFits(labels, width, font);
++            }
++        }
++        Random random = new Random(0xDB0F21L);
++        for (int i = 0; i < 12000; i++) {
++            int ki = random.nextInt(Integer.MAX_VALUE);
++            int maxKi = random.nextInt(Integer.MAX_VALUE);
++            int release = random.nextInt(101);
++            int maxRelease = random.nextInt(101);
++            int width = random.nextInt(391);
++            ToIntFunction<String> font = i % 2 == 0 ? MONO : VARIABLE;
++            checkFits(HudTextLayout.fitKiLabels(ki, maxKi, release, maxRelease, width, font),
++                    width, font);
++        }
++        // A barra integrada nunca duplica medidores: somente strings para o HUD já existente.
++        System.out.println("HudTextLayoutSmokeTest: OK (" + assertions + " verificações)");
++    }
++}
