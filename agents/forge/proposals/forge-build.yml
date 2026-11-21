@@ -1,0 +1,71 @@
+# PROPOSTA para Codex: copiar para .github/workflows/forge-build.yml
+# SOMENTE depois de importar a fonte r4 (ou posterior) na raiz do repositorio.
+name: DBU Forge build candidate (Java 17)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'gradle/**'
+      - 'gradlew*'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'agents/forge/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dbu-forge-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Test static gate
+        run: python3 -m unittest discover -s agents/forge/tests -v
+      - name: Verify source contract
+        run: python3 agents/forge/scripts/verify_source_layout.py --source .
+      - name: Standalone Java contract smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/ci-smoke
+          javac --release 17 -encoding UTF-8 -d build/ci-smoke -sourcepath src/main/java \
+            tools/GuardBalanceSmokeTest.java \
+            tools/DBUMotionMathSmokeTest.java \
+            tools/PacketContractSmokeTest.java \
+            tools/SourceParseCheck.java
+          java -cp build/ci-smoke GuardBalanceSmokeTest
+          java -cp build/ci-smoke DBUMotionMathSmokeTest
+          java -cp build/ci-smoke PacketContractSmokeTest
+          java -cp build/ci-smoke SourceParseCheck src/main/java
+      - name: Build Forge 1.20.1 / 47.3.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace --console=plain build
+          test -s build/libs/dragonballultimate-1.5.4.jar
+      - name: Validate generated JAR contents
+        run: python3 agents/forge/scripts/verify_source_layout.py --jar build/libs/dragonballultimate-1.5.4.jar
+      - name: Upload unverified-for-gameplay JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: dragonballultimate-1.5.4-build-candidate
+          path: build/libs/dragonballultimate-1.5.4.jar
+          if-no-files-found: error
+          retention-days: 7
