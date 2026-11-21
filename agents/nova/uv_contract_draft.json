@@ -1,0 +1,90 @@
+{
+  "status": "DRAFT - ULTRON/ECHO/JARVIS/Codex approval required",
+  "schema": "dbu-nova-uv-draft/0",
+  "minecraft": "1.20.1",
+  "pack_format": 15,
+  "namespace_preview_only": "dbu_nova_preview",
+  "skin": {
+    "layout": "minecraft_classic_64x64_wide_arms",
+    "resolution": [
+      128,
+      128
+    ],
+    "uv_scale_from_vanilla": 2,
+    "layer": "base opaque; optional overlay transparent",
+    "coordinate_convention": "top-left origin; half-open rectangles",
+    "parts": {
+      "head": {
+        "front": [
+          8,
+          8,
+          16,
+          16
+        ]
+      },
+      "torso": {
+        "front": [
+          20,
+          20,
+          28,
+          32
+        ]
+      },
+      "right_arm": {
+        "front": [
+          44,
+          20,
+          48,
+          32
+        ]
+      },
+      "left_arm": {
+        "front": [
+          36,
+          52,
+          40,
+          64
+        ]
+      },
+      "right_leg": {
+        "front": [
+          4,
+          20,
+          8,
+          32
+        ]
+      },
+      "left_leg": {
+        "front": [
+          20,
+          52,
+          24,
+          64
+        ]
+      }
+    }
+  },
+  "fabric_atlas": {
+    "path": "assets/dbu_nova_preview/textures/atlas/martial_fabric.png",
+    "resolution": [
+      128,
+      128
+    ],
+    "grid": [
+      4,
+      4
+    ],
+    "cell_pixels": [
+      32,
+      32
+    ],
+    "uv_normalized_formula": "for (col,row): u0=col/4, v0=row/4, u1=(col+1)/4, v1=(row+1)/4"
+  },
+  "runtime_contract": {
+    "authoritative_texture_ids": null,
+    "authoritative_model_uv": null,
+    "render_hooks": null,
+    "owner": "ULTRON with ECHO, JARVIS and Codex",
+    "note": "Preview paths must not be assumed to be DBU runtime IDs; no gameplay/controls/network/saves touched."
+  }
+}
