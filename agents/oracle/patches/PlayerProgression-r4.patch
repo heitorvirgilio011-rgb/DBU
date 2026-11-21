@@ -2,7 +2,7 @@
 +++ b/src/main/java/com/dragonballultimate/data/PlayerProgression.java
 @@ -310,7 +310,7 @@
      }
-
+ 
      public static boolean meetsFormProgression(ServerPlayer p, Transformation target) {
 -        return level(p) >= target.requiredLevel() || hasFormUnlock(p, target);
 +        return TransformationRules.hasProgression(target, level(p), hasFormUnlock(p, target));
@@ -31,7 +31,7 @@
 +        }
 +        spendKi(p, form.kiDrainPerSecond());
      }
-
+ 
      public static boolean transform(ServerPlayer p, Transformation target) {
 @@ -493,9 +501,9 @@
                  DBUSounds.play(p, DBUSounds.POWER_DOWN, 1.0F, 1.0F);
