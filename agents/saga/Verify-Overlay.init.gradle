@@ -1,0 +1,20 @@
+gradle.projectsEvaluated {
+    def mod = gradle.rootProject
+    def saga = new File(gradle.startParameter.initScripts.find {
+        it.name == 'Verify-Overlay.init.gradle'
+    }.parent)
+    def testSources = mod.sourceSets.test
+    testSources.java.srcDir(new File(saga, 'tests'))
+    def suite = mod.tasks.register('verifySaga')
+    ['SagaProgressSmoke', 'SagaSavedDataSmoke', 'SagaReloadSmoke'].each { smoke ->
+        def verification = mod.tasks.register("run${smoke}", JavaExec) {
+            dependsOn mod.tasks.named('testClasses')
+            mainClass = "com.dragonballultimate.saga.${smoke}"
+            classpath = testSources.runtimeClasspath
+            if (smoke == 'SagaReloadSmoke') {
+                args saga.absolutePath
+            }
+        }
+        suite.configure { dependsOn verification }
+    }
+}

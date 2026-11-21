@@ -1,0 +1,10 @@
+{
+  "saga": "dragonballultimate:echo_circuit",
+  "revision": 1,
+  "mentor": "dragonballultimate:lume",
+  "objectives": [
+    "dragonballultimate:wind_east",
+    "dragonballultimate:wind_west"
+  ],
+  "seals": 1
+}
