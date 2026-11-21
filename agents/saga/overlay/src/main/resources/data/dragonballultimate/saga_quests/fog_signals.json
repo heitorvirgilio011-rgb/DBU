@@ -1,0 +1,10 @@
+{
+  "saga": "dragonballultimate:echo_circuit",
+  "revision": 1,
+  "mentor": "dragonballultimate:lume",
+  "prerequisite": "dragonballultimate:wind_map",
+  "objectives": [
+    "dragonballultimate:fog_signal"
+  ],
+  "seals": 2
+}

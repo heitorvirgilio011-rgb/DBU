@@ -1,0 +1,21 @@
+{
+  "saga.dragonballultimate.echo_circuit.title": "Circuito dos Ecos",
+  "saga.dragonballultimate.wind_map.title": "Mapa dos Ventos",
+  "saga.dragonballultimate.wind_map.description": "Lume quer traçar uma rota segura pelo vale. Consulte a vigia do leste e depois o vigia do oeste. Volte com as duas leituras do vento.",
+  "saga.dragonballultimate.fog_signals.title": "Sinais na Névoa",
+  "saga.dragonballultimate.fog_signals.description": "A trilha está coberta de névoa. Encontre a sinaleira para confirmar o código das lanternas e conte a Lume o que descobriu.",
+  "saga.dragonballultimate.beacon_vigil.title": "Vigília do Farol",
+  "saga.dragonballultimate.beacon_vigil.description": "Confirme com a guardiã do farol que a rota está pronta para receber viajantes. Registre a vistoria com Lume.",
+  "saga.dragonballultimate.actor.lume": "Mestra Lume",
+  "saga.dragonballultimate.actor.wind_east": "Vigia do leste",
+  "saga.dragonballultimate.actor.wind_west": "Vigia do oeste",
+  "saga.dragonballultimate.actor.fog_signal": "Sinaleira da névoa",
+  "saga.dragonballultimate.actor.beacon_keeper": "Guardiã do farol",
+  "saga.dragonballultimate.message.started": "Missão iniciada: %1$s. %6$s Fale com %2$s.",
+  "saga.dragonballultimate.message.advanced": "%1$s (%3$s/%4$s). Agora fale com %2$s.",
+  "saga.dragonballultimate.message.ready": "%1$s (%3$s/%4$s). Volte para falar com %2$s.",
+  "saga.dragonballultimate.message.completed": "Missão concluída: %1$s. Selos recebidos: %5$s.",
+  "saga.dragonballultimate.message.current": "%1$s (%3$s/%4$s). Próximo destino: %2$s.",
+  "saga.dragonballultimate.message.all_done": "Você concluiu todas as missões disponíveis com este mestre.",
+  "saga.dragonballultimate.message.unavailable": "Este personagem ainda não tem uma missão disponível para você."
+}

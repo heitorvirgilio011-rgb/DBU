@@ -1,0 +1,21 @@
+{
+  "saga.dragonballultimate.echo_circuit.title": "Echo Circuit",
+  "saga.dragonballultimate.wind_map.title": "Wind Map",
+  "saga.dragonballultimate.wind_map.description": "Lume is charting a safe route through the valley. Visit the eastern lookout, then the western lookout. Bring both wind readings back to Lume.",
+  "saga.dragonballultimate.fog_signals.title": "Signals in the Fog",
+  "saga.dragonballultimate.fog_signals.description": "Fog has covered the trail. Find the signal keeper to confirm the lantern code, then tell Lume what you learned.",
+  "saga.dragonballultimate.beacon_vigil.title": "Beacon Vigil",
+  "saga.dragonballultimate.beacon_vigil.description": "Check with the beacon keeper that the route is ready for travelers. File your report with Lume.",
+  "saga.dragonballultimate.actor.lume": "Master Lume",
+  "saga.dragonballultimate.actor.wind_east": "Eastern lookout",
+  "saga.dragonballultimate.actor.wind_west": "Western lookout",
+  "saga.dragonballultimate.actor.fog_signal": "Fog signal keeper",
+  "saga.dragonballultimate.actor.beacon_keeper": "Beacon keeper",
+  "saga.dragonballultimate.message.started": "Quest started: %1$s. %6$s Speak to %2$s.",
+  "saga.dragonballultimate.message.advanced": "%1$s (%3$s/%4$s). Speak to %2$s next.",
+  "saga.dragonballultimate.message.ready": "%1$s (%3$s/%4$s). Return to %2$s.",
+  "saga.dragonballultimate.message.completed": "Quest complete: %1$s. Seals earned: %5$s.",
+  "saga.dragonballultimate.message.current": "%1$s (%3$s/%4$s). Next stop: %2$s.",
+  "saga.dragonballultimate.message.all_done": "You completed all available quests with this mentor.",
+  "saga.dragonballultimate.message.unavailable": "This character has no quest for you right now."
+}

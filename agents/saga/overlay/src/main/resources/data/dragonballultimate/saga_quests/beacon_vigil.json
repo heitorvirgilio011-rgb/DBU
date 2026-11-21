@@ -1,0 +1,11 @@
+{
+  "saga": "dragonballultimate:echo_circuit",
+  "revision": 1,
+  "mentor": "dragonballultimate:lume",
+  "prerequisite": "dragonballultimate:fog_signals",
+  "objectives": [
+    "dragonballultimate:beacon_keeper"
+  ],
+  "seals": 3,
+  "milestone": "dragonballultimate:echo_circuit_complete"
+}
