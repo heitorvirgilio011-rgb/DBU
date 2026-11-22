@@ -1,0 +1,245 @@
+--- a/src/main/java/com/dragonballultimate/client/CharacterCustomizationScreen.java
++++ b/src/main/java/com/dragonballultimate/client/CharacterCustomizationScreen.java
+@@ -224,7 +224,6 @@
+         rightEyeColor = CharacterOptions.EyeColor.values()[random.nextInt(CharacterOptions.EyeColor.values().length)];
+         noseShape = CharacterOptions.NoseShape.values()[random.nextInt(CharacterOptions.NoseShape.values().length)];
+         mouthStyle = CharacterOptions.MouthStyle.values()[random.nextInt(CharacterOptions.MouthStyle.values().length)];
+-        chestSize = gender == CharacterOptions.Gender.FEMALE ? random.nextInt(75, 126) : 100;
+         refresh();
+     }
+ 
+@@ -243,7 +242,6 @@
+         leftEyeColor = rightEyeColor = CharacterOptions.EyeColor.NATURAL;
+         noseShape = CharacterOptions.NoseShape.STANDARD;
+         mouthStyle = CharacterOptions.MouthStyle.NEUTRAL;
+-        chestSize = 100;
+         refresh();
+     }
+ 
+@@ -381,8 +379,6 @@
+     void editorMatchEyes() { rightEyeColor = leftEyeColor; refresh(); }
+     void editorNoseShape() { noseShape = CharacterOptions.next(noseShape); refresh(); }
+     void editorMouthStyle() { mouthStyle = CharacterOptions.next(mouthStyle); refresh(); }
+-    void editorChestSize(int size) { chestSize = Math.max(75, Math.min(125, size)); refresh(); }
+-    int editorChestSize() { return chestSize; }
+     CharacterOptions.Gender editorCurrentGender() { return gender; }
+     void editorSetBodyBuild(CharacterOptions.BodyBuild next) { bodyBuild = next; refresh(); }
+     void editorRandomize() { randomize(); }
+--- a/src/main/java/com/dragonballultimate/client/CharacterEditorScreen.java
++++ b/src/main/java/com/dragonballultimate/client/CharacterEditorScreen.java
+@@ -30,8 +30,6 @@
+     private Button muscleDefinition, faceShape, eyeStyle, leftEye, rightEye, matchEyes, nose, mouth;
+     private Button hairStudio, skinStudio, random, reset, compare;
+     private Page page = Page.BODY;
+-    private int chestSliderX, chestSliderY, chestSliderWidth;
+-    private boolean chestDragging;
+     private boolean showSaved;
+     private boolean dragging;
+     private float zoom = 1F, yawControl, pitchControl;
+@@ -94,9 +92,6 @@
+         }
+         muscleDefinition = button(controlX, y + 5 * stride, controlWidth, optionHeight, "",
+                 b -> change(parent::editorMuscleDefinition));
+-        chestSliderX = controlX + 5;
+-        chestSliderWidth = controlWidth - 10;
+-        chestSliderY = y + 7 * stride;
+         faceShape = button(controlX, y, controlWidth, optionHeight, "",
+                 b -> change(parent::editorFaceShape));
+         nose = button(controlX, y + stride, controlWidth, optionHeight, "",
+@@ -213,7 +208,7 @@
+             bodyCards[i].visible = bodyPage;
+             bodyCards[i].setMessage(Component.literal((build == type ? "● " : "") + type.label()));
+         }
+-        muscleDefinition.setMessage(Component.literal("MUSCULOS: " + muscles.label() + " >"));
++        muscleDefinition.setMessage(Component.literal("DEFINIÇÃO: " + muscles.label() + " >"));
+         faceShape.setMessage(Component.literal("ROSTO: " + face.label() + " >"));
+         eyeStyle.setMessage(Component.literal("OLHOS: " + eyes.label() + " >"));
+         leftEye.setMessage(Component.literal("IRIS ESQ.: " + leftColor.label() + " >"));
+@@ -254,25 +249,8 @@
+                 && y >= previewTop + 24 && y <= previewBottom;
+     }
+ 
+-    private boolean inChestSlider(double x, double y) {
+-        return page == Page.BODY && parent.editorCurrentGender() == CharacterOptions.Gender.FEMALE
+-                && x >= chestSliderX - 4 && x <= chestSliderX + chestSliderWidth + 4
+-                && y >= chestSliderY - 6 && y <= chestSliderY + 11;
+-    }
+-
+-    private void moveChestSlider(double x) {
+-        int value = 75 + (int) Math.round(50D * Math.max(0D,
+-                Math.min(1D, (x - chestSliderX) / chestSliderWidth)));
+-        change(() -> parent.editorChestSize(value));
+-    }
+-
+     @Override
+     public boolean mouseClicked(double x, double y, int button) {
+-        if (button == 0 && inChestSlider(x, y)) {
+-            chestDragging = true;
+-            moveChestSlider(x);
+-            return true;
+-        }
+         if (super.mouseClicked(x, y, button)) return true;
+         if (button == 0 && inPreview(x, y)) {
+             dragging = true;
+@@ -283,10 +261,6 @@
+ 
+     @Override
+     public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+-        if (chestDragging && button == 0) {
+-            moveChestSlider(x);
+-            return true;
+-        }
+         if (dragging && button == 0) {
+             yawControl = Math.max(-155F, Math.min(155F, yawControl + (float) dx * 1.5F));
+             pitchControl = Math.max(-75F, Math.min(75F, pitchControl + (float) dy));
+@@ -298,7 +272,6 @@
+     @Override
+     public boolean mouseReleased(double x, double y, int button) {
+         dragging = false;
+-        chestDragging = false;
+         return super.mouseReleased(x, y, button);
+     }
+ 
+@@ -342,22 +315,7 @@
+                     tab.getX() + tab.getWidth(), tab.getY() + tab.getHeight(), indicator);
+         }
+         if (page == Page.BODY) {
+-            g.drawString(font, "ESCOLHA O TIPO DE CORPO", controlX, optionY + 2 * stride - 12, MUTED);
+-            if (parent.editorCurrentGender() == CharacterOptions.Gender.FEMALE) {
+-                int value = parent.editorChestSize();
+-                g.drawString(font, "TAMANHO DO TRONCO: " + value + "%",
+-                        controlX, chestSliderY - 15, 0xFFD2E4FA);
+-                int progress = Math.round(chestSliderWidth * (value - 75) / 50F);
+-                g.fill(chestSliderX, chestSliderY, chestSliderX + chestSliderWidth,
+-                        chestSliderY + 7, 0xFF435775);
+-                g.fill(chestSliderX, chestSliderY, chestSliderX + progress,
+-                        chestSliderY + 7, GOLD);
+-                g.fill(chestSliderX + progress - 3, chestSliderY - 3,
+-                        chestSliderX + progress + 3, chestSliderY + 10, 0xFFF5FAFF);
+-            } else {
+-                g.drawString(font, "AJUSTE DO TRONCO: TIPO FEMININO", controlX,
+-                        chestSliderY - 9, MUTED);
+-            }
++            g.drawString(font, "FÍSICO (TEXTURA)", controlX, optionY + 2 * stride - 12, MUTED);
+         } else if (page == Page.HAIR && !Race.fromId(parent.editorDraft().race())
+                 .orElse(Race.HUMAN).supportsHair()) {
+             g.drawString(font, "ESTA RACA NAO USA CABELOS", controlX, optionY + 4, MUTED);
+@@ -374,30 +332,6 @@
+         g.drawString(font, "ARRASTE O PERSONAGEM PARA GIRAR  |  SCROLL PARA ZOOM",
+                 previewX + 4, top + panelHeight - 42, MUTED);
+         super.render(g, mouseX, mouseY, partialTick);
+-        if (page == Page.BODY) drawBodyCards(g);
+-    }
+-
+-    /** Mini-silhuetas selecionáveis em grade, como referência visual do porte. */
+-    private void drawBodyCards(GuiGraphics g) {
+-        Race race = Race.fromId(parent.editorDraft().race()).orElse(Race.HUMAN);
+-        int color = SkinTextureFactory.skinColor(race, CharacterOptions.SkinTone.TAN);
+-        for (int i = 0; i < bodyCards.length; i++) {
+-            Button card = bodyCards[i];
+-            if (!card.visible) continue;
+-            int cx = card.getX() + 14, cy = card.getY() + card.getHeight() / 2;
+-            int torso = switch (CharacterOptions.BodyBuild.values()[i]) {
+-                case SLIM -> 7;
+-                case ATHLETIC -> 10;
+-                case MUSCULAR -> 13;
+-                case ROBUST -> 15;
+-            };
+-            g.fill(cx - 3, cy - 13, cx + 3, cy - 7, 0xFF332B30);
+-            g.fill(cx - torso / 2, cy - 6, cx + (torso + 1) / 2, cy + 5, color);
+-            g.fill(cx - torso / 2 - 3, cy - 5, cx - torso / 2, cy + 4, color);
+-            g.fill(cx + (torso + 1) / 2, cy - 5, cx + (torso + 1) / 2 + 3, cy + 4, color);
+-            g.fill(cx - 4, cy + 5, cx - 1, cy + 12, color);
+-            g.fill(cx + 1, cy + 5, cx + 4, cy + 12, color);
+-        }
+     }
+ 
+     private void drawPreview(GuiGraphics g) {
+--- a/src/main/java/com/dragonballultimate/client/DBUSkinLayer.java
++++ b/src/main/java/com/dragonballultimate/client/DBUSkinLayer.java
+@@ -112,10 +112,6 @@
+             if (animation.guardArms() > 0F && (i == 4 || i == 5)) limbs[i].zRot -= .21F;
+         }
+         try {
+-        CharacterOptions.BodyBuild body = CharacterOptions.BodyBuild.fromId(cosmetics.bodyBuild())
+-                .orElse(CharacterOptions.BodyBuild.ATHLETIC);
+-        float chestDepth = cosmetics.gender().equals(CharacterOptions.Gender.FEMALE.id())
+-                ? Math.max(.75F, Math.min(1.25F, cosmetics.chestSize() / 100F)) : 1F;
+         // A skin gerada ocupa os UVs BASE (cabeca, tronco e membros) e EXTERNOS.
+         // Renderizar so os overlays hat/jacket/sleeves/pants deixa as partes
+         // transparentes da skin original do launcher vazarem nos membros.
+@@ -126,14 +122,14 @@
+             if (player.getItemBySlot(EquipmentSlot.HEAD).isEmpty())
+                 part(model.head, pose, vertices, light, overlay);
+             if (player.getItemBySlot(EquipmentSlot.CHEST).isEmpty()) {
+-                shapedPart(model.body, body.torsoScale(), chestDepth, pose, vertices, light, overlay);
+-                shapedPart(model.rightArm, body.armsScale(), pose, vertices, light, overlay);
+-                shapedPart(model.leftArm, body.armsScale(), pose, vertices, light, overlay);
++                part(model.body, pose, vertices, light, overlay);
++                part(model.rightArm, pose, vertices, light, overlay);
++                part(model.leftArm, pose, vertices, light, overlay);
+             }
+             if (player.getItemBySlot(EquipmentSlot.LEGS).isEmpty()
+                     && player.getItemBySlot(EquipmentSlot.FEET).isEmpty()) {
+-                shapedPart(model.rightLeg, body.legsScale(), pose, vertices, light, overlay);
+-                shapedPart(model.leftLeg, body.legsScale(), pose, vertices, light, overlay);
++                part(model.rightLeg, pose, vertices, light, overlay);
++                part(model.leftLeg, pose, vertices, light, overlay);
+             }
+         } finally {
+             pose.popPose();
+@@ -146,14 +142,14 @@
+             if (player.getItemBySlot(EquipmentSlot.HEAD).isEmpty())
+                 part(model.hat, pose, vertices, light, overlay);
+             if (player.getItemBySlot(EquipmentSlot.CHEST).isEmpty()) {
+-                shapedPart(model.jacket, body.torsoScale(), chestDepth, pose, vertices, light, overlay);
+-                shapedPart(model.rightSleeve, body.armsScale(), pose, vertices, light, overlay);
+-                shapedPart(model.leftSleeve, body.armsScale(), pose, vertices, light, overlay);
++                part(model.jacket, pose, vertices, light, overlay);
++                part(model.rightSleeve, pose, vertices, light, overlay);
++                part(model.leftSleeve, pose, vertices, light, overlay);
+             }
+             if (player.getItemBySlot(EquipmentSlot.LEGS).isEmpty()
+                     && player.getItemBySlot(EquipmentSlot.FEET).isEmpty()) {
+-                shapedPart(model.rightPants, body.legsScale(), pose, vertices, light, overlay);
+-                shapedPart(model.leftPants, body.legsScale(), pose, vertices, light, overlay);
++                part(model.rightPants, pose, vertices, light, overlay);
++                part(model.leftPants, pose, vertices, light, overlay);
+             }
+         } finally {
+             pose.popPose();
+@@ -165,7 +161,6 @@
+         // A carapaça faz parte da aparência e não atravessa peitorais equipados.
+         if (player.getItemBySlot(EquipmentSlot.CHEST).isEmpty()) {
+             pose.pushPose();
+-            pose.scale(body.torsoScale(), 1F, chestDepth);
+             raceDetails.torso(race, pose, buffers, light, overlay);
+             pose.popPose();
+         }
+@@ -208,26 +203,6 @@
+         }
+     }
+ 
+-    /** Engrossa a malha visual em torno da articulacao; a hitbox permanece intacta. */
+-    private static void shapedPart(ModelPart part, float widthScale, PoseStack pose,
+-                                   VertexConsumer vertices, int light, int overlay) {
+-        shapedPart(part, widthScale, 1F, pose, vertices, light, overlay);
+-    }
+-
+-    private static void shapedPart(ModelPart part, float widthScale, float depthMultiplier,
+-                                   PoseStack pose, VertexConsumer vertices, int light, int overlay) {
+-        pose.pushPose();
+-        try {
+-            float pivotX = part.x / 16F, pivotY = part.y / 16F, pivotZ = part.z / 16F;
+-            pose.translate(pivotX, pivotY, pivotZ);
+-            pose.scale(widthScale, 1F, (1F + (widthScale - 1F) * .72F) * depthMultiplier);
+-            pose.translate(-pivotX, -pivotY, -pivotZ);
+-            part(part, pose, vertices, light, overlay);
+-        } finally {
+-            pose.popPose();
+-        }
+-    }
+-
+     private static ResourceLocation textureFor(CosmeticStatePacket cosmetics) {
+         Entry entry = TEXTURES.get(cosmetics.playerId());
+         if (entry != null && entry.profile().equals(cosmetics)) return entry.texture();
