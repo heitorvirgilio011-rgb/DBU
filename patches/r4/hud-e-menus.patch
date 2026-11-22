@@ -1,0 +1,399 @@
+--- a/src/main/java/com/dragonballultimate/client/DBUStatsScreen.java
++++ b/src/main/java/com/dragonballultimate/client/DBUStatsScreen.java
+@@ -5,6 +5,7 @@
+ import com.dragonballultimate.network.DBUNetwork;
+ import com.dragonballultimate.network.PlayerStatePacket;
+ import com.dragonballultimate.network.UpgradeAttributePacket;
++import com.dragonballultimate.network.PlayerActionPacket;
+ import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.client.gui.screens.Screen;
+@@ -13,6 +14,7 @@
+ /** Atributos e Training Points separados da aparência para uma progressão clara. */
+ public final class DBUStatsScreen extends Screen {
+     private final Screen previous;
++    private boolean training;
+     private final Button[] upgrades = new Button[StatAttribute.values().length];
+     private int left, top, panelWidth, panelHeight, rowStep;
+ 
+@@ -28,8 +30,18 @@
+         left = (width - panelWidth) / 2;
+         top = (height - panelHeight) / 2;
+         rowStep = Math.min(26, Math.max(16, (panelHeight - 94) / 6));
++        int tabWidth = (panelWidth - 32) / 2;
++        addRenderableWidget(Button.builder(Component.literal("Atributos"), b -> selectTraining(false))
++                .bounds(left + 14, top + 7, tabWidth, 20).build()).active = training;
++        addRenderableWidget(Button.builder(Component.literal("Treinamento"), b -> selectTraining(true))
++                .bounds(left + 18 + tabWidth, top + 7, tabWidth, 20).build()).active = !training;
++        if (training) {
++            addRenderableWidget(Button.builder(Component.literal("Treinar (+10 XP)"), b ->
++                    DBUNetwork.sendToServer(new PlayerActionPacket(PlayerActionPacket.TRAIN)))
++                    .bounds(left + 14, top + 89, panelWidth - 28, 20).build());
++        }
+         StatAttribute[] stats = StatAttribute.values();
+-        for (int i = 0; i < stats.length; i++) {
++        for (int i = 0; !training && i < stats.length; i++) {
+             final String id = stats[i].id();
+             upgrades[i] = addRenderableWidget(Button.builder(Component.literal("+1"), b ->
+                     DBUNetwork.sendToServer(new UpgradeAttributePacket(id)))
+@@ -45,18 +57,22 @@
+         g.fill(left - 3, top - 3, left + panelWidth + 3, top + panelHeight + 3, 0xFF07111F);
+         g.fill(left, top, left + panelWidth, top + panelHeight, 0xFF192940);
+         g.fill(left, top, left + panelWidth, top + 3, 0xFFFFC44D);
+-        g.drawCenteredString(font, "DRAGON BALL ULTIMATE", width / 2, top + 9, 0xFFFFCF65);
+-        g.drawCenteredString(font, "ATRIBUTOS E TREINAMENTO", width / 2, top + 22, 0xFFEBF1FF);
+         PlayerStatePacket state = ClientPlayerState.current();
+         int tp = state == null ? 0 : state.trainingPoints();
+         g.drawString(font, "TP disponíveis: " + tp, left + 14, top + 38, 0xFFFFD87D);
++        if (training && state != null) {
++            g.drawString(font, "Nível " + state.level() + "   XP " + state.xp() + "/" + state.xpNeeded(),
++                    left + 14, top + 55, 0xFFE4EBFA);
++            g.drawString(font, "Intervalo de treino: 5 s", left + 14, top + 71, 0xFFBED3EE);
++        }
+         StatAttribute[] stats = StatAttribute.values();
+-        for (int i = 0; i < stats.length; i++) {
++        for (int i = 0; !training && i < stats.length; i++) {
+             int value = state == null ? StatBalance.BASE : statValue(state, stats[i]);
+             int cost = StatBalance.upgradeCost(value);
+             upgrades[i].active = state != null && tp >= cost && value < StatBalance.MAX;
+             int y = top + 54 + i * rowStep;
+-            g.drawString(font, stats[i].label() + "  " + value + "  |  " + cost + " TP",
++            g.drawString(font, stats[i].label() + "  " + value + (value >= StatBalance.MAX
++                    ? "  (máximo)" : " → " + (value + 1) + "   " + cost + " TP"),
+                     left + 14, y, i % 2 == 0 ? 0xFFE4EBFA : 0xFFBED3EE);
+         }
+         if (panelHeight >= 235)
+@@ -64,6 +80,14 @@
+                     top + panelHeight - 38, 0xFF9AB0D0);
+         super.render(g, mx, my, partialTick);
+     }
++
++    private void selectTraining(boolean selected) {
++        training = selected;
++        rebuildWidgets();
++    }
++
++    @Override
++    public boolean isPauseScreen() { return false; }
+ 
+     public static int statValue(PlayerStatePacket p, StatAttribute stat) {
+         return switch (stat) {
+--- a/src/main/java/com/dragonballultimate/client/CharacterCustomizationScreen.java
++++ b/src/main/java/com/dragonballultimate/client/CharacterCustomizationScreen.java
+@@ -115,6 +115,8 @@
+         previewX = left + panelWidth - previewWidth - 12;
+         contentWidth = Math.max(60, previewX - contentX - 10);
+ 
++        button(left + panelWidth - 96, top + 8, 84, 20, "TP / Treino",
++                b -> minecraft.setScreen(new DBUStatsScreen(this)));
+         int tabWidth = (panelWidth - 36) / 4;
+         raceTab = button(contentX, top + 36, tabWidth, 19, "RAÇA", b -> selectTab(Tab.RACE));
+         appearanceTab = button(contentX + tabWidth + 4, top + 36, tabWidth, 19,
+@@ -438,9 +440,7 @@
+         g.fill(left + 9, top + 30, left + panelWidth - 9, top + 31, 0xFF3B4C68);
+         g.fill(left + 10, top + panelHeight - 35, left + panelWidth - 10,
+                 top + panelHeight - 34, 0xFF3B4C68);
+-        g.drawString(font, "DRAGON BALL ULTIMATE", left + 20, top + 8, ACCENT);
+-        g.drawString(font, "CENTRAL DO GUERREIRO", left + 20, top + 20, 0xFFE5EBF5);
+-        g.drawString(font, "DBU 1.5.2", left + panelWidth - 65, top + 9, 0xFFABC4DF);
++        g.drawString(font, "Personagem", left + 20, top + 14, ACCENT);
+         int tabWidth = (panelWidth - 36) / 4;
+         int activeX = contentX + tab.ordinal() * (tabWidth + 4);
+         g.fill(activeX + 2, top + 56, activeX + tabWidth - 2, top + 58, ACCENT);
+--- a/src/main/java/com/dragonballultimate/client/DBUHud.java
++++ b/src/main/java/com/dragonballultimate/client/DBUHud.java
+@@ -1,7 +1,6 @@
+ package com.dragonballultimate.client;
+ 
+ import com.dragonballultimate.DragonBallUltimate;
+-import com.dragonballultimate.data.CombatClass;
+ import com.dragonballultimate.network.PlayerStatePacket;
+ import net.minecraft.client.Minecraft;
+ import net.minecraft.client.gui.GuiGraphics;
+@@ -18,22 +17,14 @@
+         bus = Mod.EventBusSubscriber.Bus.MOD)
+ public final class DBUHud {
+     private static final int FRAME = 0xEE090F19;
+-    private static final int PANEL = 0xDE18283B;
+-    private static final int EDGE = 0xFF597087;
+     private static final int GOLD = 0xFFFFD166;
+-    private static final int LIGHT = 0xFFF4F5FB;
+-    private static final int MUTED = 0xFFB7C3D5;
+     private static final int KI = 0xFF32C5F6;
+     private static final int STAMINA = 0xFFFF9654;
+-    private static final int BAR_HEIGHT = 7;
+ 
+     private static UUID displayedPlayer;
+     private static long previousFrame;
+     private static float healthShown = -1F, healthChip = -1F;
+     private static float kiShown = -1F, staminaShown = -1F, releaseShown = -1F;
+-    private static long damageShakeUntil;
+-    private static long powerPulseUntil;
+-    private static int previousPower = -1;
+ 
+     private DBUHud() {}
+ 
+@@ -50,7 +41,7 @@
+             graphics.pose().pushPose();
+             graphics.pose().scale(hudScale, hudScale, 1F);
+             try {
+-                draw(graphics, mc, state, panelGuiWidth, partialTick);
++                draw(graphics, mc, state, panelGuiWidth);
+             } finally {
+                 graphics.pose().popPose();
+             }
+@@ -58,220 +49,48 @@
+     }
+ 
+     private static int panelWidth(int screenWidth) {
+-        return Math.min(260, Math.max(219, screenWidth - 12));
++        return Math.min(174, Math.max(124, screenWidth - 12));
+     }
+ 
+     private static void draw(GuiGraphics g, Minecraft mc, PlayerStatePacket state,
+-                             int panelWidth, float partialTick) {
++                             int panelWidth) {
+         int x = 6, y = 6;
+-        int panelHeight = 153;
+-        int barsWidth = panelWidth - 71;
+-
+-        float time = mc.level.getGameTime() + partialTick;
+         float dt = frameDelta(mc.player.getUUID());
+         float health = HudMath.ratio(mc.player.getHealth(), mc.player.getMaxHealth());
+         float ki = HudMath.ratio(state.ki(), state.maxKi());
+         float stamina = HudMath.ratio(state.stamina(), state.maxStamina());
+         float release = HudMath.ratio(state.releasePercent(), 100);
+-        if (previousPower >= 0 && previousPower != state.combatPower())
+-            powerPulseUntil = System.nanoTime() + 280_000_000L;
+-        previousPower = state.combatPower();
+-        if (healthShown >= 0F && healthShown - health > .20F)
+-            damageShakeUntil = System.nanoTime() + 175_000_000L;
+         healthShown = HudMath.approach(healthShown, health, dt);
+         healthChip = HudMath.damageChip(healthChip, health, dt);
+         kiShown = HudMath.approach(kiShown, ki, dt);
+         staminaShown = HudMath.approach(staminaShown, stamina, dt);
+         releaseShown = HudMath.approach(releaseShown, release, dt);
+ 
+-        // Deslocamento pequeno e temporário em golpes fortes, sem alterar a câmera.
+-        if (System.nanoTime() < damageShakeUntil) x += (int) time % 3 - 1;
+-        int barsX = x + 61;
+-
+-        // Chassi metálico compacto: três barras, Ki e liberação no mesmo medidor.
+-        g.fill(x - 2, y - 2, x + panelWidth + 2, y + panelHeight + 2, FRAME);
+-        g.fill(x, y, x + panelWidth, y + panelHeight, PANEL);
+-        g.fill(x, y, x + panelWidth, y + 2, GOLD);
+-        g.fill(x, y + 2, x + panelWidth, y + 3, 0xFF866D42);
+-        g.fill(x, y + panelHeight - 2, x + panelWidth, y + panelHeight, EDGE);
+-        g.fill(x + 5, y + 20, x + panelWidth - 5, y + 21, 0xFF3B526B);
+-        g.fill(x + panelWidth - 2, y + 3, x + panelWidth, y + panelHeight - 2, 0xFF324963);
+-
+-        g.drawString(mc.font, "DRAGON BALL ULTIMATE", x + 8, y + 7, GOLD, true);
+-        String level = "LV " + state.level();
+-        g.drawString(mc.font, level, x + panelWidth - mc.font.width(level) - 8,
+-                y + 7, LIGHT, true);
+-
+-        CombatClass combatClass = CombatClass.fromId(state.combatClass()).orElse(CombatClass.UNVERSED);
+-        portrait(g, mc, x + 10, y + 30, time);
+-        g.drawCenteredString(mc.font, compactClass(combatClass), x + 31, y + 79, MUTED);
+-        if (DBUKeyBindings.isGuardingVisual()) {
+-            g.drawCenteredString(mc.font, "DEFESA", x + 31, y + 93, 0xFF89D8FF);
+-        } else if (state.turboEnabled()) {
+-            g.drawCenteredString(mc.font, "TURBO", x + 31, y + 93, STAMINA);
+-        } else if (state.flightEnabled()) {
+-            g.drawCenteredString(mc.font, "VOO", x + 31, y + 93, KI);
+-        } else if (DBUKeyBindings.isChargingVisual()) {
+-            g.drawCenteredString(mc.font, "KI +", x + 31, y + 93, 0xFF88F2FF);
++        int barsX = x + 34;
++        int width = panelWidth - 36;
++        int time = (int) (mc.level.getGameTime() % 16);
++        ResourceLocation face = DBUSkinLayer.portraitTexture(mc.player.getUUID());
++        g.fill(x, y, x + 30, y + 30, FRAME);
++        if (face != null) {
++            g.blit(face, x + 2, y + 2, 26, 26, 160F, 32F, 32, 32, 256, 256);
+         }
+-
+-        int healthColor = health < .25F ? 0xFFF05054 : health < .50F ? 0xFFFFC15C : 0xFF55E39C;
+-        int barsY = y + 27;
+-        drawBar(g, mc, barsX, barsY, barsWidth, "VIDA",
+-                (int) Math.ceil(mc.player.getHealth()) + "/" + (int) Math.ceil(mc.player.getMaxHealth()),
+-                healthShown, healthColor, healthChip, time, health < .25F);
+-        boolean chargingKi = DBUKeyBindings.isChargingVisual();
+-        drawUnifiedKi(g, mc, barsX, barsY + 26, barsWidth, state, chargingKi, time);
+-        drawBar(g, mc, barsX, barsY + 56, barsWidth, "FÔLEGO",
+-                HudMath.number(state.stamina()) + "/" + HudMath.number(state.maxStamina()),
+-                staminaShown, STAMINA, -1F, time + 22F, false);
+-
+-        // Visor de poder de luta em destaque, sem invadir os medidores.
+-        g.fill(x + 8, y + 108, x + panelWidth - 8, y + 109, 0xFF405770);
+-        g.fill(x + 8, y + 112, x + panelWidth - 8, y + 148, 0xE70B1829);
+-        g.fill(x + 8, y + 112, x + 10, y + 148, GOLD);
+-        g.fill(x + 11, y + 112, x + 87, y + 113, 0xFF546D87);
+-        g.drawString(mc.font, "PODER DE LUTA", x + 16, y + 114, MUTED, false);
+-        g.pose().pushPose();
+-        g.pose().translate(x + 16, y + 126, 0F);
+-        float bpScale = System.nanoTime() < powerPulseUntil ? 1.94F : 1.75F;
+-        g.pose().scale(bpScale, bpScale, 1F);
+-        g.drawString(mc.font, HudMath.number(state.combatPower()), 0, 0,
+-                System.nanoTime() < powerPulseUntil ? 0xFFFFE8A0 : GOLD, true);
+-        g.pose().popPose();
+-
+-        String currentForm = state.form().equals("base") ? "BASE"
+-                : state.form().equals("super_saiyan") ? "SUPER SAIYAJIN"
+-                : state.form().toUpperCase(java.util.Locale.ROOT);
+-        g.drawString(mc.font, currentForm,
+-                x + panelWidth - mc.font.width(currentForm) - 15, y + 115, LIGHT, true);
+-        String tp = "TP " + state.trainingPoints();
+-        g.drawString(mc.font, tp, x + panelWidth - mc.font.width(tp) - 15,
+-                y + 136, MUTED, true);
+-        drawMoveDisplay(g, mc, x, y + panelHeight + 7, panelWidth, partialTick);
++        meter(g, barsX, y, width, 8, healthShown,
++                health < .25F && time < 8 ? 0xFFFF9393 : 0xFFE9545A, healthChip);
++        meter(g, barsX, y + 11, width, 6, kiShown,
++                DBUKeyBindings.isChargingVisual() ? 0xFF9BEEFF : KI, -1F);
++        meter(g, barsX, y + 18, width, 2, releaseShown, GOLD, -1F);
++        meter(g, barsX, y + 23, width, 5, staminaShown, STAMINA, -1F);
++        g.drawString(mc.font, "BP " + HudMath.number(state.combatPower()),
++                barsX, y + 31, GOLD, true);
+     }
+ 
+-    /** Visor compacto de golpes. Técnicas não aprendidas não são oferecidas. */
+-    private static void drawMoveDisplay(GuiGraphics g, Minecraft mc, int x, int y,
+-                                        int width, float partialTick) {
+-        boolean guarding = DBUKeyBindings.isGuardingVisual();
+-        boolean attacking = mc.player.getAttackAnim(partialTick) > .05F;
+-        int status = guarding ? 0xFF75D4F7 : attacking ? 0xFFFFC45B : MUTED;
+-        g.fill(x - 1, y - 1, x + width + 1, y + 39, FRAME);
+-        g.fillGradient(x, y, x + width, y + 38, 0xE11E314A, 0xD70C1729);
+-        g.fill(x, y, x + width, y + 2, status);
+-        g.drawString(mc.font, "COMBATE", x + 7, y + 5, GOLD, true);
+-        String state = guarding ? "DEFENDENDO" : attacking ? "GOLPE" : "PRONTO";
+-        g.drawString(mc.font, state, x + width - mc.font.width(state) - 7,
+-                y + 5, status, false);
+-        g.drawString(mc.font, "[M1] SOCO", x + 8, y + 19, LIGHT, false);
+-        g.drawString(mc.font, "[Z] DEFESA", x + 86, y + 19,
+-                guarding ? 0xFF7CE1FC : MUTED, false);
+-        String future = "[X] GOLPES";
+-        g.drawString(mc.font, future, x + width - mc.font.width(future) - 8,
+-                y + 19, MUTED, false);
+-    }
+-
+-    private static String compactClass(CombatClass selected) {
+-        return switch (selected) {
+-            case WARRIOR -> "GUERREIRO";
+-            case MARTIAL_ARTIST -> "MARCIAL";
+-            case SPIRITUALIST -> "ESPIRIT.";
+-            case BERSERKER -> "BERSERKER";
+-            case PALADIN -> "PALADINO";
+-            case TANK -> "TANQUE";
+-            case CLERIC -> "CURADOR";
+-            case UNVERSED -> "HÍBRIDO";
+-        };
+-    }
+-
+-    /** Retrato da skin personalizada Ultimate; a moldura acompanha o estado da vida. */
+-    private static void portrait(GuiGraphics g, Minecraft mc, int x, int y, float time) {
+-        int glow = mc.player.getHealth() / Math.max(1F, mc.player.getMaxHealth()) < .25F
+-                && (int) time % 14 < 7 ? 0xFFF05054 : EDGE;
+-        g.fill(x - 2, y - 2, x + 43, y + 43, glow);
+-        g.fill(x, y, x + 41, y + 41, 0xFF0B1525);
+-        ResourceLocation custom = DBUSkinLayer.portraitTexture(mc.player.getUUID());
+-        if (custom != null) {
+-            // A face é desenhada na UV externa da cabeça em resolução 256x256.
+-            g.blit(custom, x + 5, y + 5, 31, 31, 160F, 32F, 32, 32, 256, 256);
+-        } else {
+-            // Enquanto a aparência sincroniza, não exibe a skin antiga da conta.
+-            g.fill(x + 5, y + 5, x + 36, y + 36, 0xFF293B54);
+-        }
+-    }
+-
+-    private static void drawBar(GuiGraphics g, Minecraft mc, int x, int y, int width,
+-                                String label, String value, float fill, int color, float chip,
+-                                float time, boolean critical) {
+-        g.drawString(mc.font, label, x, y, LIGHT, true);
+-        int valueX = x + width - mc.font.width(value);
+-        g.drawString(mc.font, value, valueX, y, critical ? 0xFFFF8686 : MUTED, true);
+-        int barTop = y + 12;
+-        g.fill(x - 1, barTop - 1, x + width + 1, barTop + BAR_HEIGHT + 1, 0xFF080E19);
+-        g.fill(x, barTop, x + width, barTop + BAR_HEIGHT, 0xFF263349);
+-        if (chip >= 0F && chip > fill) {
+-            int chipWidth = HudMath.pixels(chip, 1F, width);
+-            g.fill(x, barTop, x + chipWidth, barTop + BAR_HEIGHT, 0xFF9A5363);
+-        }
+-        int amount = HudMath.pixels(fill, 1F, width);
+-        int pulseColor = critical && (int) time % 11 < 5 ? 0xFFFF7171 : color;
+-        g.fill(x, barTop, x + amount, barTop + BAR_HEIGHT, pulseColor);
+-        g.fill(x, barTop, x + amount, barTop + 2, 0x55FFFFFF);
+-        if (amount > 9) {
+-            int shine = x + Math.round((time % 70F) / 70F * amount);
+-            g.fill(shine, barTop, Math.min(x + amount, shine + 2), barTop + BAR_HEIGHT,
+-                    0x66FFFFFF);
+-        }
+-        segments(g, x, barTop, width, BAR_HEIGHT);
+-    }
+-
+-    /** Uma única barra: reserva de Ki em azul e liberação em trilho dourado interno. */
+-    private static void drawUnifiedKi(GuiGraphics g, Minecraft mc, int x, int y,
+-                                      int width, PlayerStatePacket state,
+-                                      boolean charging, float time) {
+-        String kiValue = "KI " + HudMath.number(state.ki()) + "/" + HudMath.number(state.maxKi());
+-        String releaseValue = "LIB " + state.releasePercent() + "%/" + state.maxRelease() + "%";
+-        if (mc.font.width(kiValue) + mc.font.width(releaseValue) + 5 > width)
+-            releaseValue = "L " + state.releasePercent() + "%";
+-        g.drawString(mc.font, kiValue, x, y, charging ? 0xFFA7F3FF : LIGHT, true);
+-        g.drawString(mc.font, releaseValue, x + width - mc.font.width(releaseValue), y, GOLD, true);
+-
+-        int top = y + 12;
+-        int mainHeight = 8;
+-        int totalHeight = 13;
+-        g.fill(x - 1, top - 1, x + width + 1, top + totalHeight + 1, 0xFF080E19);
+-        g.fill(x, top, x + width, top + totalHeight, 0xFF263349);
+-        int filledKi = HudMath.pixels(kiShown, 1F, width);
+-        g.fill(x, top, x + filledKi, top + mainHeight, charging ? 0xFF6DEBFF : KI);
+-        g.fill(x, top, x + filledKi, top + 2, 0x70FFFFFF);
+-
+-        // Ondulações mais rápidas ao segurar C; limitadas à parte cheia do Ki.
+-        int spacing = charging ? 13 : 25;
+-        int shift = (int) (time * (charging ? 3.4F : .9F)) % spacing;
+-        for (int dx = shift; dx < filledKi; dx += spacing) {
+-            int rippleX = x + dx;
+-            g.fill(rippleX, top + 1, Math.min(x + filledKi, rippleX + (charging ? 3 : 2)),
+-                    top + mainHeight - 1, charging ? 0x99FFFFFF : 0x50FFFFFF);
+-        }
+-
+-        // A liberação mantém seus limites e custos originais; só o display é fundido.
+-        int maxRelease = HudMath.pixels(HudMath.ratio(state.maxRelease(), 100), 1F, width);
+-        int actualRelease = HudMath.pixels(releaseShown, 1F, width);
+-        g.fill(x, top + 9, x + width, top + totalHeight, 0xFF182234);
+-        g.fill(x, top + 9, x + maxRelease, top + totalHeight, 0xFF514634);
+-        g.fill(x, top + 9, x + actualRelease, top + totalHeight, GOLD);
+-        if (maxRelease < width)
+-            g.fill(x + maxRelease, top + 8, x + maxRelease + 1, top + totalHeight, 0xFFFAF0CD);
+-        segments(g, x, top, width, mainHeight);
+-        segments(g, x, top + 9, width, totalHeight - 9);
+-    }
+-
+-    private static void segments(GuiGraphics g, int x, int top, int width, int height) {
+-        for (int i = 1; i < 4; i++) {
+-            int separator = x + i * width / 4;
+-            g.fill(separator, top, separator + 1, top + height, 0xBC09111B);
+-        }
++    private static void meter(GuiGraphics g, int x, int y, int width, int height,
++                              float fraction, int color, float chip) {
++        g.fill(x - 1, y - 1, x + width + 1, y + height + 1, FRAME);
++        g.fill(x, y, x + width, y + height, 0xFF283343);
++        if (chip > fraction)
++            g.fill(x, y, x + HudMath.pixels(chip, 1F, width), y + height, 0xFF935262);
++        g.fill(x, y, x + HudMath.pixels(fraction, 1F, width), y + height, color);
+     }
+ 
+     private static float frameDelta(UUID playerId) {
+@@ -279,9 +98,6 @@
+         if (!playerId.equals(displayedPlayer)) {
+             displayedPlayer = playerId;
+             healthShown = healthChip = kiShown = staminaShown = releaseShown = -1F;
+-            damageShakeUntil = 0L;
+-            powerPulseUntil = 0L;
+-            previousPower = -1;
+             previousFrame = now;
+             return 0F;
+         }

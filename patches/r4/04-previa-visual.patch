@@ -1,0 +1,282 @@
+--- a/src/main/java/com/dragonballultimate/client/CharacterCustomizationScreen.java
++++ b/src/main/java/com/dragonballultimate/client/CharacterCustomizationScreen.java
+@@ -373,12 +373,39 @@
+     void editorBodyBuild() { bodyBuild = CharacterOptions.next(bodyBuild); refresh(); }
+     void editorMuscleDefinition() { muscleDefinition = CharacterOptions.next(muscleDefinition); refresh(); }
+     void editorFaceShape() { faceShape = CharacterOptions.next(faceShape); refresh(); }
+-    void editorSetEyes(CharacterOptions.EyeStyle style, CharacterOptions.EyeColor left,
+-                       CharacterOptions.EyeColor right) {
+-        eyeStyle = style;
+-        leftEyeColor = left;
+-        rightEyeColor = right;
+-        refresh();
++    enum Feature {
++        STYLE(CharacterOptions.EyeStyle.values()),
++        LEFT(CharacterOptions.EyeColor.values()),
++        RIGHT(CharacterOptions.EyeColor.values()),
++        NOSE(CharacterOptions.NoseShape.values()),
++        MOUTH(CharacterOptions.MouthStyle.values()),
++        FACE(CharacterOptions.FaceShape.values()),
++        HAIR(CharacterOptions.HairStyle.values()),
++        COLOR(CharacterOptions.Color.values());
++
++        final CharacterOptions.Option[] options;
++        Feature(CharacterOptions.Option[] options) { this.options = options; }
++    }
++
++    void chooseFeature(Feature feature, int index) {
++        switch (feature) {
++            case STYLE -> eyeStyle = CharacterOptions.EyeStyle.values()[index];
++            case LEFT -> leftEyeColor = CharacterOptions.EyeColor.values()[index];
++            case RIGHT -> rightEyeColor = CharacterOptions.EyeColor.values()[index];
++            case NOSE -> noseShape = CharacterOptions.NoseShape.values()[index];
++            case MOUTH -> mouthStyle = CharacterOptions.MouthStyle.values()[index];
++            case FACE -> faceShape = CharacterOptions.FaceShape.values()[index];
++            case HAIR -> hair = CharacterOptions.HairStyle.values()[index];
++            case COLOR -> hairColor = CharacterOptions.Color.values()[index];
++        }
++        if (feature == Feature.HAIR) hairCode = previewHairCode(hair.id());
++        refresh();
++    }
++
++    private String previewHairCode(String style) {
++        if (style.equals(CharacterOptions.HairStyle.CUSTOM.id()) && HairDesign.parse(hairCode).isEmpty())
++            return HairDesign.preset(CharacterOptions.HairStyle.SPIKY).encode();
++        return hairCode;
+     }
+     void editorMatchEyes() { rightEyeColor = leftEyeColor; refresh(); }
+     void editorNoseShape() { noseShape = CharacterOptions.next(noseShape); refresh(); }
+@@ -420,18 +447,18 @@
+     String skinCode() { return skinCode; }
+ 
+     CosmeticStatePacket draftCosmetics(String draftSkinCode) {
+-        return draftCosmetics(draftSkinCode, eyeStyle, leftEyeColor, rightEyeColor);
+-    }
+-
+-    CosmeticStatePacket draftCosmetics(String draftSkinCode, CharacterOptions.EyeStyle eyeStyle,
+-                                       CharacterOptions.EyeColor leftEyeColor,
+-                                       CharacterOptions.EyeColor rightEyeColor) {
++        return draftCosmetics(draftSkinCode, null, -1);
++    }
++
++    CosmeticStatePacket draftCosmetics(String draftSkinCode, Feature feature, int index) {
++        String candidate = feature == null ? "" : feature.options[index].id();
++        String style = feature == Feature.HAIR ? candidate : hair.id();
+         PlayerStatePacket current = ClientPlayerState.current();
+         String outfit = current == null ? CharacterOptions.Outfit.ORANGE_GI.id() : current.outfit();
+-        return new CosmeticStatePacket(minecraft.player.getUUID(), race.id(), gender.id(), hair.id(),
+-                hairColor.id(), skin.id(), aura.id(), outfit, hairCode, draftSkinCode,
+-                bodyBuild.id(), muscleDefinition.id(), faceShape.id(), eyeStyle.id(),
+-                leftEyeColor.id(), rightEyeColor.id(), noseShape.id(), mouthStyle.id(), chestSize,
++        return new CosmeticStatePacket(minecraft.player.getUUID(), race.id(), gender.id(), style,
++                feature == Feature.COLOR ? candidate : hairColor.id(), skin.id(), aura.id(), outfit, previewHairCode(style), draftSkinCode,
++                bodyBuild.id(), muscleDefinition.id(), feature == Feature.FACE ? candidate : faceShape.id(), feature == Feature.STYLE ? candidate : eyeStyle.id(),
++                feature == Feature.LEFT ? candidate : leftEyeColor.id(), feature == Feature.RIGHT ? candidate : rightEyeColor.id(), feature == Feature.NOSE ? candidate : noseShape.id(), feature == Feature.MOUTH ? candidate : mouthStyle.id(), chestSize,
+                 current == null ? "base" : current.form());
+     }
+ 
+--- a/src/main/java/com/dragonballultimate/client/CharacterEditorScreen.java
++++ b/src/main/java/com/dragonballultimate/client/CharacterEditorScreen.java
+@@ -1,6 +1,7 @@
+ package com.dragonballultimate.client;
+ 
+ import com.dragonballultimate.data.CharacterOptions;
++import com.dragonballultimate.client.CharacterCustomizationScreen.Feature;
+ import com.dragonballultimate.data.Race;
+ import com.dragonballultimate.data.RaceAppearance;
+ import com.dragonballultimate.network.CosmeticStatePacket;
+@@ -29,10 +30,10 @@
+     private final Button[] bodyCards = new Button[CharacterOptions.BodyBuild.values().length];
+     private Button muscleDefinition, faceShape, eyeStyle, leftEye, rightEye, matchEyes, nose, mouth;
+     private Button hairStudio, skinStudio, random, reset, compare;
+-    private enum EyeField { STYLE, LEFT, RIGHT }
+-    private EyeField eyeField;
+-    private final Button[] choices = new Button[CharacterOptions.EyeColor.values().length];
+-    private Button backToEyes;
++    private Feature feature;
++    private final Button[] choices = new Button[6];
++    private Button cancelPreview, nextOptions;
++    private int firstOption;
+     private Page page = Page.BODY;
+     private boolean showSaved;
+     private boolean dragging;
+@@ -78,9 +79,9 @@
+             change(() -> parent.editorRace(1));
+         });
+         gender = button(controlX, y + stride, controlWidth, optionHeight, "", b -> change(parent::editorGender));
+-        hair = button(controlX, y, controlWidth, optionHeight, "", b -> change(parent::editorHair));
++        hair = button(controlX, y, controlWidth, optionHeight, "", b -> openChoices(Feature.HAIR));
+         hairColor = button(controlX, y + stride, controlWidth, optionHeight, "",
+-                b -> change(parent::editorHairColor));
++                b -> openChoices(Feature.COLOR));
+         tone = button(controlX, y, controlWidth, optionHeight, "",
+                 b -> change(parent::editorSkinTone));
+         aura = button(controlX, y + stride, controlWidth, optionHeight, "",
+@@ -97,17 +98,17 @@
+         muscleDefinition = button(controlX, y + 5 * stride, controlWidth, optionHeight, "",
+                 b -> change(parent::editorMuscleDefinition));
+         faceShape = button(controlX, y, controlWidth, optionHeight, "",
+-                b -> change(parent::editorFaceShape));
++                b -> openChoices(Feature.FACE));
+         nose = button(controlX, y + stride, controlWidth, optionHeight, "",
+-                b -> change(parent::editorNoseShape));
++                b -> openChoices(Feature.NOSE));
+         mouth = button(controlX, y + 2 * stride, controlWidth, optionHeight, "",
+-                b -> change(parent::editorMouthStyle));
++                b -> openChoices(Feature.MOUTH));
+         eyeStyle = button(controlX, y, controlWidth, optionHeight, "",
+-                b -> openEyeChoices(EyeField.STYLE));
++                b -> openChoices(Feature.STYLE));
+         leftEye = button(controlX, y + stride, controlWidth, optionHeight, "",
+-                b -> openEyeChoices(EyeField.LEFT));
++                b -> openChoices(Feature.LEFT));
+         rightEye = button(controlX, y + 2 * stride, controlWidth, optionHeight, "",
+-                b -> openEyeChoices(EyeField.RIGHT));
++                b -> openChoices(Feature.RIGHT));
+         matchEyes = button(controlX, y + 3 * stride, controlWidth, optionHeight,
+                 "IGUALAR CORES", b -> change(parent::editorMatchEyes));
+ 
+@@ -115,15 +116,16 @@
+             final int index = i;
+             choices[i] = button(controlX + (i % 2) * (half + 5), y + (i / 2) * stride,
+                     half, optionHeight, "", b -> {
+-                        CosmeticStatePacket selected = eyeCandidate(index);
+-                        parent.editorSetEyes(CharacterOptions.EyeStyle.fromId(selected.eyeStyle()).orElseThrow(),
+-                                CharacterOptions.EyeColor.fromId(selected.leftEyeColor()).orElseThrow(),
+-                                CharacterOptions.EyeColor.fromId(selected.rightEyeColor()).orElseThrow());
+-                        openEyeChoices(null);
++                        parent.chooseFeature(feature, firstOption + index);
++                        openChoices(null);
+                     });
+         }
+-        backToEyes = button(controlX, y + 5 * stride, controlWidth, optionHeight,
+-                "Cancelar prévia", b -> openEyeChoices(null));
++        nextOptions = button(controlX, y + 3 * stride, controlWidth, optionHeight, "Mais opções", b -> {
++            firstOption = firstOption + choices.length < feature.options.length ? firstOption + choices.length : 0;
++            refreshLabels();
++        });
++        cancelPreview = button(controlX, y + 4 * stride, controlWidth, optionHeight,
++                "Cancelar prévia", b -> openChoices(null));
+ 
+         hairStudio = button(controlX, y + 2 * stride, controlWidth, optionHeight,
+                 "CABELOS 3D", b -> parent.editorHairStudio(this));
+@@ -170,27 +172,15 @@
+         refreshLabels();
+     }
+ 
+-    private void openEyeChoices(EyeField field) {
+-        eyeField = field;
++    private void openChoices(Feature field) {
++        feature = field;
++        firstOption = 0;
+         showSaved = false;
+         refreshLabels();
+     }
+ 
+-    private CosmeticStatePacket eyeCandidate(int index) {
+-        CosmeticStatePacket draft = parent.editorDraft();
+-        var style = CharacterOptions.EyeStyle.fromId(draft.eyeStyle()).orElseThrow();
+-        var left = CharacterOptions.EyeColor.fromId(draft.leftEyeColor()).orElseThrow();
+-        var right = CharacterOptions.EyeColor.fromId(draft.rightEyeColor()).orElseThrow();
+-        switch (eyeField) {
+-            case STYLE -> style = CharacterOptions.EyeStyle.values()[index];
+-            case LEFT -> left = CharacterOptions.EyeColor.values()[index];
+-            case RIGHT -> right = CharacterOptions.EyeColor.values()[index];
+-        }
+-        return parent.draftCosmetics(draft.skinCode(), style, left, right);
+-    }
+-
+     private void selectPage(Page next) {
+-        eyeField = null;
++        feature = null;
+         page = next;
+         refreshLabels();
+     }
+@@ -237,7 +227,7 @@
+         hair.setMessage(Component.literal("CABELO: " + currentHair.label() + " >"));
+         hairColor.setMessage(Component.literal("COR: " + currentHairColor.label() + " >"));
+         hair.active = hairColor.active = race.supportsHair();
+-        hair.visible = hairColor.visible = page == Page.HAIR && race.supportsHair();
++        hair.visible = hairColor.visible = page == Page.HAIR && race.supportsHair() && feature == null;
+         tone.setMessage(Component.literal("PELE: " + currentTone.label() + " >"));
+         aura.setMessage(Component.literal("AURA: " + currentAura.label() + " >"));
+         tone.visible = aura.visible = page == Page.SKIN;
+@@ -254,18 +244,19 @@
+         nose.setMessage(Component.literal("NARIZ: " + noseOption.label() + " >"));
+         mouth.setMessage(Component.literal("BOCA: " + mouthOption.label() + " >"));
+         muscleDefinition.visible = bodyPage;
+-        faceShape.visible = nose.visible = mouth.visible = page == Page.FACE;
+-        eyeStyle.visible = leftEye.visible = rightEye.visible = matchEyes.visible = page == Page.EYES && eyeField == null;
++        faceShape.visible = nose.visible = mouth.visible = page == Page.FACE && feature == null;
++        eyeStyle.visible = leftEye.visible = rightEye.visible = matchEyes.visible = page == Page.EYES && feature == null;
+         for (int i = 0; i < choices.length; i++) {
+-            boolean style = eyeField == EyeField.STYLE;
+-            choices[i].visible = eyeField != null && (!style || i < CharacterOptions.EyeStyle.values().length);
+-            if (choices[i].visible) choices[i].setMessage(Component.literal(style
+-                    ? CharacterOptions.EyeStyle.values()[i].label() : CharacterOptions.EyeColor.values()[i].label()));
+-        }
+-        backToEyes.visible = eyeField != null;
+-        hairStudio.visible = page == Page.HAIR && race.supportsHair();
++            int index = firstOption + i;
++            choices[i].visible = feature != null && index < feature.options.length;
++            if (choices[i].visible)
++                choices[i].setMessage(Component.literal(feature.options[index].label()));
++        }
++        nextOptions.visible = feature != null && feature.options.length > choices.length;
++        cancelPreview.visible = feature != null;
++        hairStudio.visible = page == Page.HAIR && race.supportsHair() && feature == null;
+         skinStudio.visible = page == Page.SKIN;
+-        random.visible = reset.visible = panelHeight >= 360 && eyeField == null;
++        random.visible = reset.visible = panelHeight >= 360 && feature == null;
+         compare.setMessage(Component.literal(showSaved ? "EDITAR" : "SALVO"));
+     }
+ 
+@@ -364,7 +355,7 @@
+         } else if (page == Page.HAIR && !Race.fromId(parent.editorDraft().race())
+                 .orElse(Race.HUMAN).supportsHair()) {
+             g.drawString(font, "ESTA RACA NAO USA CABELOS", controlX, optionY + 4, MUTED);
+-        } else if (page == Page.EYES && eyeField == null) {
++        } else if (page == Page.EYES && feature == null) {
+             g.drawString(font, "CORES INDEPENDENTES POR OLHO", controlX,
+                     optionY + 4 * stride + 3, MUTED);
+         } else if (page == Page.SKIN) {
+@@ -397,7 +388,7 @@
+         CosmeticStatePacket saved = ClientCosmetics.get(minecraft.player.getUUID());
+         boolean comparing = showSaved && saved != null;
+         CosmeticStatePacket shown = comparing ? saved : draft;
+-        if (!comparing && eyeField != null) {
++        if (!comparing && feature != null) {
+             int focused = -1;
+             for (int i = 0; i < choices.length; i++) {
+                 Button choice = choices[i];
+@@ -408,18 +399,28 @@
+                 }
+                 if (minecraft.getLastInputType().isKeyboard() && choice.isFocused()) focused = i;
+             }
+-            if (focused >= 0) shown = eyeCandidate(focused);
++            if (focused >= 0) shown = parent.draftCosmetics(parent.skinCode(), feature, firstOption + focused);
+         }
+         DBUSkinLayer.setPreview(shown);
+         int room = Math.max(70, previewBottom - previewTop - 25);
+         int scale = Math.max(20, Math.min(102, Math.round(room * .48F * zoom)));
++        int feetY = previewBottom - 10;
++        if (page == Page.EYES || page == Page.FACE || page == Page.HAIR) {
++            boolean hairView = page == Page.HAIR;
++            int viewport = Math.max(1, previewBottom - previewTop - 29);
++            int span = Math.max(1, previewRight - previewX - 4);
++            scale = Math.max(1, Math.round(Math.min(viewport * (hairView ? .78F : 1.42F),
++                    span * (hairView ? .85F : 1.35F)) * zoom));
++            float target = hairView ? 1.73F : feature == Feature.MOUTH ? 1.55F : 1.63F;
++            feetY = (previewTop + 27 + previewBottom - 2) / 2 + Math.round(target * scale);
++        }
+         g.enableScissor(previewX + 2, previewTop + 27,
+                 previewRight - 2, previewBottom - 2);
+         try {
+             // Angulos virtuais independentes do cursor: arraste para girar,
+             // use o scroll para dar zoom sem alterar os dados do personagem.
+             InventoryScreen.renderEntityInInventoryFollowsMouse(g,
+-                    cx, previewBottom - 10, scale, yawControl, pitchControl, minecraft.player);
++                    cx, feetY, scale, yawControl, pitchControl, minecraft.player);
+         } finally {
+             g.disableScissor();
+         }
